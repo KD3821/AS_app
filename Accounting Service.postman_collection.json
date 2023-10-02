@@ -1,0 +1,512 @@
+{
+	"info": {
+		"_postman_id": "f331e984-42bb-445e-945a-276d592d4de4",
+		"name": "Accounting Service",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "14745819"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test2@mail.com\",\n  \"is_admin\": false,\n  \"password\": \"NewPass\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:7000/auth/register",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login -> Token (FormData)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "username",
+									"value": "test2@mail.com",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "NewPass",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "http://127.0.0.1:7000/auth/login",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "User Info",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2OTYyNDQ4NjMsIm5iZiI6MTY5NjI0NDg2MywiZXhwIjoxNjk2MjQ4NDYzLCJzdWIiOiIyIiwidXNlciI6eyJlbWFpbCI6InRlc3QyQG1haWwuY29tIiwiaWQiOjJ9fQ.EzVyxalEUSEfilvMzbKV6otoM6Y-zzFr7CsVww7fmmM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://127.0.0.1:7000/auth/info",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"auth",
+								"info"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Business Accounts",
+			"item": [
+				{
+					"name": "List Accounts (Public Info)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2OTYyNDQ4NjMsIm5iZiI6MTY5NjI0NDg2MywiZXhwIjoxNjk2MjQ4NDYzLCJzdWIiOiIyIiwidXNlciI6eyJlbWFpbCI6InRlc3QyQG1haWwuY29tIiwiaWQiOjJ9fQ.EzVyxalEUSEfilvMzbKV6otoM6Y-zzFr7CsVww7fmmM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://127.0.0.1:7000/accounts/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"accounts",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Business Account",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2OTYyNDQ4NjMsIm5iZiI6MTY5NjI0NDg2MywiZXhwIjoxNjk2MjQ4NDYzLCJzdWIiOiIyIiwidXNlciI6eyJlbWFpbCI6InRlc3QyQG1haWwuY29tIiwiaWQiOjJ9fQ.EzVyxalEUSEfilvMzbKV6otoM6Y-zzFr7CsVww7fmmM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"company\": \"New Company\",\n  \"city\": \"Boston\",\n  \"country\": \"US\",\n  \"description\": \"Great Star-Up with ambitious management\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:7000/accounts/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"accounts",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Business Account's Info",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2OTYyNDQ4NjMsIm5iZiI6MTY5NjI0NDg2MywiZXhwIjoxNjk2MjQ4NDYzLCJzdWIiOiIyIiwidXNlciI6eyJlbWFpbCI6InRlc3QyQG1haWwuY29tIiwiaWQiOjJ9fQ.EzVyxalEUSEfilvMzbKV6otoM6Y-zzFr7CsVww7fmmM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://127.0.0.1:7000/accounts/info",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"accounts",
+								"info"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Business Account",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2OTYyNDQ4NjMsIm5iZiI6MTY5NjI0NDg2MywiZXhwIjoxNjk2MjQ4NDYzLCJzdWIiOiIyIiwidXNlciI6eyJlbWFpbCI6InRlc3QyQG1haWwuY29tIiwiaWQiOjJ9fQ.EzVyxalEUSEfilvMzbKV6otoM6Y-zzFr7CsVww7fmmM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"Online Accounting Service\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:7000/accounts/info",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"accounts",
+								"info"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Business Account",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2OTYyNDQ4NjMsIm5iZiI6MTY5NjI0NDg2MywiZXhwIjoxNjk2MjQ4NDYzLCJzdWIiOiIyIiwidXNlciI6eyJlbWFpbCI6InRlc3QyQG1haWwuY29tIiwiaWQiOjJ9fQ.EzVyxalEUSEfilvMzbKV6otoM6Y-zzFr7CsVww7fmmM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://127.0.0.1:7000/accounts/info",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"accounts",
+								"info"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Transactions",
+			"item": [
+				{
+					"name": "List Account's Txns",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2OTYyNDQ4NjMsIm5iZiI6MTY5NjI0NDg2MywiZXhwIjoxNjk2MjQ4NDYzLCJzdWIiOiIyIiwidXNlciI6eyJlbWFpbCI6InRlc3QyQG1haWwuY29tIiwiaWQiOjJ9fQ.EzVyxalEUSEfilvMzbKV6otoM6Y-zzFr7CsVww7fmmM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://127.0.0.1:7000/transactions/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"transactions",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Withdraw Txn",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2OTYyNDQ4NjMsIm5iZiI6MTY5NjI0NDg2MywiZXhwIjoxNjk2MjQ4NDYzLCJzdWIiOiIyIiwidXNlciI6eyJlbWFpbCI6InRlc3QyQG1haWwuY29tIiwiaWQiOjJ9fQ.EzVyxalEUSEfilvMzbKV6otoM6Y-zzFr7CsVww7fmmM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"withdraw\",\n  \"amount\": 5000,\n  \"notice\": \"Pizza for meetup\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:7000/transactions/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"transactions",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Deposit Txn",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2OTYyNDQ4NjMsIm5iZiI6MTY5NjI0NDg2MywiZXhwIjoxNjk2MjQ4NDYzLCJzdWIiOiIyIiwidXNlciI6eyJlbWFpbCI6InRlc3QyQG1haWwuY29tIiwiaWQiOjJ9fQ.EzVyxalEUSEfilvMzbKV6otoM6Y-zzFr7CsVww7fmmM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"deposit\",\n  \"amount\": 25000,\n  \"notice\": \"Raised private funds\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:7000/transactions/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"transactions",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Transfer Txn",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2OTYyNDQ4NjMsIm5iZiI6MTY5NjI0NDg2MywiZXhwIjoxNjk2MjQ4NDYzLCJzdWIiOiIyIiwidXNlciI6eyJlbWFpbCI6InRlc3QyQG1haWwuY29tIiwiaWQiOjJ9fQ.EzVyxalEUSEfilvMzbKV6otoM6Y-zzFr7CsVww7fmmM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"transfer\",\n  \"amount\": 3000,\n  \"receiver_account\": \"1696235957\",\n  \"notice\": \"Coffee supply for office from New 'Era Coffeeshop'\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:7000/transactions/",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"transactions",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Notice of Txn",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2OTYyNDQ4NjMsIm5iZiI6MTY5NjI0NDg2MywiZXhwIjoxNjk2MjQ4NDYzLCJzdWIiOiIyIiwidXNlciI6eyJlbWFpbCI6InRlc3QyQG1haWwuY29tIiwiaWQiOjJ9fQ.EzVyxalEUSEfilvMzbKV6otoM6Y-zzFr7CsVww7fmmM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"notice\": \"Coffee supply for office from New 'Era Coffeeshop' - BEST COFFEE!\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://127.0.0.1:7000/transactions/4",
+							"protocol": "http",
+							"host": [
+								"127",
+								"0",
+								"0",
+								"1"
+							],
+							"port": "7000",
+							"path": [
+								"transactions",
+								"4"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
