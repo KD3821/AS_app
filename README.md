@@ -7,7 +7,7 @@
 
 <ul>
 <li>
-Register with Email</li>
+register with Email</li>
 <li>
 each API endpoint requires Authentication</li>
 <li>
