@@ -24,7 +24,7 @@ def get_transactions(
 ):
     """
     Get list of Business Account's Transactions (Auth required)
-    - **kind**: Filter transaction by type - ('transfer', 'withdraw', 'deposit') - Optionally.
+    - **kind**: Filter common by type - ('transfer', 'withdraw', 'deposit') - Optionally.
     """
     return service.get_list(user_id=user.id, kind=kind)
 

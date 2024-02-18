@@ -96,6 +96,19 @@ class AuthService:
                     status_code=status.HTTP_400_BAD_REQUEST
                 )
 
+        user = (
+            self.session
+            .query(tables.User)
+            .filter(tables.User.email == user_data.email)
+            .first()
+        )
+
+        if user:
+            raise HTTPException(
+                detail='User with such Email is already registered. Do you want to reset password?',
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
         user = tables.User(
             email=user_data.email,
             is_admin=user_data.is_admin,
