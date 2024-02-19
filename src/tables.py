@@ -40,3 +40,25 @@ class Transaction(Base):
     type = sa.Column(sa.String)
     amount = sa.Column(sa.Numeric(8, 2))
     notice = sa.Column(sa.String, nullable=True)
+
+
+class OAuthClient(Base):
+    __tablename__ = 'clients'
+
+    id = sa.Column(sa.Integer, primary_key=True)
+    name = sa.Column(sa.String, unique=True)
+    hashed_password = sa.Column(sa.String)
+    client_id = sa.Column(sa.String, unique=True)
+    secret_key = sa.Column(sa.String)
+
+
+class OAuthToken(Base):
+    __tablename__ = 'tokens'
+    id = sa.Column(sa.Integer, primary_key=True)
+    refresh = sa.Column(sa.Boolean, default=False)
+    user_id = sa.Column(sa.Integer, sa.ForeignKey('users.id'))
+    client_name = sa.Column(sa.String, sa.ForeignKey('clients.name'))
+    token = sa.Column(sa.String)
+    expire_date = sa.Column(sa.DateTime)
+    revoke_date = sa.Column(sa.DateTime, nullable=True)
+    revoked = sa.Column(sa.Boolean, default=False)

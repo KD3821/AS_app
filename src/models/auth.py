@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr
+from datetime import datetime
 
 
 class BaseUser(BaseModel):
@@ -17,7 +18,12 @@ class User(BaseUser):
         from_attributes = True
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str = 'bearer'
+class AccessToken(BaseModel):
+    access: str
+    expire_date: datetime
+    token_type: str = 'Bearer'
 
+
+class RefreshToken(BaseModel):
+    refresh: str
+    expire_date: datetime
