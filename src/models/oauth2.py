@@ -42,13 +42,9 @@ class OAuthProvideResponse(BaseModel):
     scope: str
 
 
-class IntrospectRequest(BaseModel):
-    client_id: str
-    client_secret: str
-    token: str
-
-
 class IntrospectResponse(BaseModel):
-    id: int
-    email: EmailStr
-    exp: datetime
+    client_id: str
+    username: EmailStr
+    scope: str
+    exp: int
+    active: bool

@@ -1,15 +1,14 @@
-from fastapi import APIRouter, Depends
+import json
+
+from fastapi import APIRouter, Depends, Request
 
 from services.oauth2 import OAuthService
-from services.auth import AuthService
 from models.oauth2 import (
     OAuthClientCreate,
     OAuthClient,
     OAuthProvideRequest,
     OAuthProvideResponse,
     OAuthRevokeRequest,
-    IntrospectRequest,
-    IntrospectResponse,
 )
 
 
@@ -44,8 +43,7 @@ def keys(
 @router.post('/token/', response_model=OAuthProvideResponse)
 def provide(
     oauth_data: OAuthProvideRequest,
-    service: OAuthService = Depends(),
-    user_service: AuthService = Depends()
+    service: OAuthService = Depends()
 ):
     """
     Validate credentials or refresh token & Provide Access and Refresh tokens
@@ -58,7 +56,7 @@ def provide(
         'password': oauth_data.password,
         'refresh_token': oauth_data.refresh_token,
     }
-    return service.provide_oauth(data, user_service)
+    return service.provide_oauth(data)
 
 
 @router.post('/revoke_token/')
@@ -73,12 +71,25 @@ def revoke(
 
 
 @router.post('/introspect/')
-def introspect(
-    introspect_data: IntrospectRequest,
-    service: OAuthService = Depends(),
-    user_service: AuthService = Depends()
+async def introspect(
+    introspect_data: Request,
+    service: OAuthService = Depends()
 ):
-    return service.check_token(introspect_data, user_service)
+    """
+    Introspect data
+    """
+    # print(dir(introspect_data))
+    # print(introspect_data.__dict__)
+    # print(introspect_data.headers)
+
+    # request_body = await introspect_data.json()
+    # token = request_body.get('token')
+
+    token_bytes = await introspect_data.body()
+    token_string = token_bytes.decode()
+    token = token_string.split('=')[-1]
+
+    return service.check_token(token)
 
 
 """

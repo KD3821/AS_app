@@ -18,9 +18,15 @@ class User(BaseUser):
         from_attributes = True
 
 
+class Token(BaseModel):
+    access: str
+    token_type: str | None = 'Bearer'
+
+
 class AccessToken(BaseModel):
     access: str
     expire_date: datetime
+    scope: str
     token_type: str = 'Bearer'
 
 

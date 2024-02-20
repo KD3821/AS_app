@@ -1,6 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 
+
 from settings import accounting_settings
 from api import router
 

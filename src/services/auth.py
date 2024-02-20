@@ -9,7 +9,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from database import get_session
-from models.auth import User, AccessToken, RefreshToken, UserCreate
+from models.auth import User, Token, UserCreate
 from settings import accounting_settings
 import tables
 
@@ -63,18 +63,15 @@ class AuthService:
         return user
 
     @classmethod
-    def create_token(cls, user: tables.User, token_type: str = 'access', delta: int = accounting_settings.jwt_expiration):
+    def create_token(cls, user: tables.User):
         user_data = User.model_validate(user)
 
         now = datetime.utcnow()
 
-        if token_type == 'refresh':  # hardcode expire_date for refresh token (5 min)
-            delta = 300
-
         payload = {
             'iat': now,
             'nbf': now,
-            'exp': now + (delta * timedelta(seconds=1)),
+            'exp': now + timedelta(seconds=accounting_settings.jwt_expiration),
             'sub': str(user_data.id),
             'user': user_data.model_dump()
         }
@@ -85,11 +82,9 @@ class AuthService:
             algorithm=accounting_settings.jwt_algorithm
         )
 
-        if token_type == 'refresh':
-            return RefreshToken(refresh=token, expire_date=payload.get('exp'))
-        return AccessToken(access=token, expire_date=payload.get('exp'))
+        return Token(access=token)
 
-    def register_user(self, user_data: UserCreate) -> AccessToken:
+    def register_user(self, user_data: UserCreate) -> Token:
         if user_data.is_admin:
             admin_user = (
                 self.session
@@ -128,7 +123,7 @@ class AuthService:
 
         return self.create_token(user)
 
-    def authenticate_user(self, email: str, password: str) -> AccessToken:
+    def authenticate_user(self, email: str, password: str) -> Token:
         authentication_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Invalid email or password',

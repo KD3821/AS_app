@@ -1,23 +1,24 @@
 import random
 import string
-from datetime import datetime
+import pytz
+from pydantic import ValidationError
+from datetime import datetime, timedelta
 from passlib.hash import bcrypt
+from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 
-from fastapi import Depends, status
+from fastapi import Depends, status, Response
 from fastapi.exceptions import HTTPException
 
 import tables
 from settings import accounting_settings
 from database import get_session
-from models.auth import User
-from .auth import AuthService
+from models.auth import User, AccessToken, RefreshToken
 from models.oauth2 import (
     OAuthClientCreate,
     OAuthClient,
     OAuthProvideResponse,
     OAuthRevokeRequest,
-    IntrospectRequest,
     IntrospectResponse,
 )
 
@@ -33,6 +34,63 @@ class OAuthService:
     @classmethod
     def hash_password(cls, password: str) -> str:
         return bcrypt.hash(password)
+
+    @classmethod
+    def validate_user_token(cls, token: str) -> User:
+        token_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Invalid token',
+            headers={'WWW-Authenticate': 'Bearer'}
+        )
+
+        try:
+            payload = jwt.decode(
+                token,
+                accounting_settings.jwt_secret,
+                algorithms=[accounting_settings.jwt_algorithm]
+            )
+        except JWTError:
+            raise token_exception
+
+        if payload.get('exp') < datetime.timestamp(datetime.utcnow()):  # added
+            raise token_exception
+
+        user_data = payload.get('user')
+
+        try:
+            user = User.model_validate(user_data)
+        except ValidationError:
+            raise token_exception
+
+        return user
+
+    @classmethod
+    def create_token(cls, user: tables.User, data: dict, token_type: str = 'access'):
+        user_data = User.model_validate(user)
+
+        now = datetime.utcnow()
+
+        delta = 300 if token_type == 'refresh' else accounting_settings.jwt_expiration  # hardcode refresh 'exp' (5 min)
+
+        payload = {
+            'exp': now + timedelta(seconds=delta),
+            'client_id': data.get('client_id'),
+            'user': user_data.model_dump()
+        }
+
+        if token_type == 'access':
+            payload.update({'scope': 'read write introspection'})
+
+        token = jwt.encode(
+            payload,
+            accounting_settings.jwt_secret,
+            algorithm=accounting_settings.jwt_algorithm
+        )
+
+        if token_type == 'refresh':
+            return RefreshToken(refresh=token, expire_date=payload.get('exp'))
+
+        return AccessToken(access=token, expire_date=payload.get('exp'), scope=payload.get('scope'))
 
     def remind_creds(self, name: str, password: str) -> OAuthClient:
         authentication_exception = HTTPException(
@@ -114,17 +172,24 @@ class OAuthService:
         )
         if token_exists:
             now = datetime.utcnow()
-            token_exists.expire_date = now
-            token_exists.revoke_date = now
-            token_exists.revoked = True
+            unexpired_tokens = (
+                self.session
+                .query(tables.OAuthToken)
+                .filter(tables.OAuthToken.client_name == client.name)
+                .filter(tables.OAuthToken.expire_date >= now)
+            )
+            for token in unexpired_tokens:
+                token.revoke_date = now
+                token.revoked = True
 
             self.session.commit()
             return {"message": "token revoked"}
 
         return {"error": "invalid_grant"}
 
-    def provide_oauth(self, data: dict, user_service: AuthService) -> OAuthProvideResponse | dict:
+    def provide_oauth(self, data: dict) -> OAuthProvideResponse | dict:
         user = None
+
         client = self.authenticate_client(
             client_id=data.get('client_id'),
             secret_key=data.get('secret_key')
@@ -139,31 +204,34 @@ class OAuthService:
             )
 
         elif grant_type == 'refresh_token':
-            user = user_service.validate_token(data.get('refresh_token'))
+            user = self.validate_user_token(data.get('refresh_token'))
 
         if user:
-            access_token = user_service.create_token(user)
-            refresh_token = user_service.create_token(user, 'refresh')
+            access_token = self.create_token(user, data)
+            refresh_token = self.create_token(user, data, 'refresh')
 
             response_data = {
                 'access_token': access_token.access,
                 'refresh_token': refresh_token.refresh,
                 'expires_in': accounting_settings.jwt_expiration,
                 'token_type': 'Bearer',
-                'scope': 'read write groups',
+                'scope': access_token.scope,
             }
             access_t = tables.OAuthToken(
                 user_id=user.id,
+                user_email=user.email,
                 client_name=client.name,
                 token=access_token.access,
-                expire_date=access_token.expire_date
+                expire_date=access_token.expire_date,
+                scope=access_token.scope
             )
             refresh_t = tables.OAuthToken(
                 user_id=user.id,
+                user_email=user.email,
                 client_name=client.name,
-                refresh=True,
                 token=refresh_token.refresh,
-                expire_date=refresh_token.expire_date
+                expire_date=refresh_token.expire_date,
+                refresh=True
             )
 
             self.session.add_all([access_t, refresh_t])
@@ -215,25 +283,44 @@ class OAuthService:
 
         return client
 
-    def check_token(self, introspect_data: IntrospectRequest, user_service: AuthService) -> IntrospectResponse | dict:
-        client = self.authenticate_client(
-            client_id=introspect_data.client_id,
-            secret_key=introspect_data.client_secret
-        )
+    def check_token(self, token: str) -> IntrospectResponse | dict:
+        try:
+            payload = jwt.decode(
+                token,
+                accounting_settings.jwt_secret,
+                algorithms=[accounting_settings.jwt_algorithm]
+            )
+        except JWTError:
+            return {"active": False}
+
+        user_dict = payload.get('user')
+        client_id = payload.get('client_id')
+
         token_exists = (
             self.session
             .query(tables.OAuthToken)
-            .filter(tables.OAuthToken.token == introspect_data.token)
-            .filter(tables.OAuthToken.client_name == client.name)
+            .filter(tables.OAuthToken.user_email == user_dict.get('email'))
+            .filter(tables.OAuthToken.token == token)
+            .filter(tables.OAuthToken.expire_date > datetime.utcnow())
+            .filter(tables.OAuthToken.revoked == False)
             .first()
         )
-        if token_exists:
-            user = user_service.validate_token(token_exists.token)
-            data = {
-                'id': user.id,
-                'email': user.email,
-                'exp': token_exists.expire_date
-            }
-            return IntrospectResponse(**data)
 
-        return {"error": "invalid_grant"}
+        exp = token_exists.expire_date
+        service_timezone = pytz.timezone("Europe/Moscow")
+        utc_exp = pytz.utc.localize(exp)
+        local_exp = utc_exp.astimezone(service_timezone)
+
+        if token_exists:
+            data = {
+                'client_id': client_id,
+                'username': user_dict.get('email'),
+                'scope': token_exists.scope,
+                'exp': int(round(datetime.timestamp(local_exp))),
+                'active': True
+            }
+            print(data)
+            # return IntrospectResponse(**data)
+            return data
+
+        return {"active": False}
