@@ -9,6 +9,9 @@ from models.oauth2 import (
     OAuthProvideRequest,
     OAuthProvideResponse,
     OAuthRevokeRequest,
+    IntrospectRequest,
+    OAuthRefreshRequest,
+    OAuthRefreshResponse,
 )
 
 
@@ -40,7 +43,7 @@ def keys(
     return service.remind_creds(name=auth_data.name, password=auth_data.password)
 
 
-@router.post('/token/', response_model=OAuthProvideResponse)
+@router.post('/tokens/', response_model=OAuthProvideResponse)
 def provide(
     oauth_data: OAuthProvideRequest,
     service: OAuthService = Depends()
@@ -51,12 +54,21 @@ def provide(
     data = {
         'client_id': oauth_data.client_id,
         'secret_key': oauth_data.client_secret,
-        'grant_type': oauth_data.grant_type,
         'email': oauth_data.username,
         'password': oauth_data.password,
-        'refresh_token': oauth_data.refresh_token,
     }
     return service.provide_oauth(data)
+
+
+@router.post('/refresh/', response_model=OAuthRefreshResponse)
+def refresh(
+    token_data: OAuthRefreshRequest,
+    service: OAuthService = Depends()
+):
+    """
+    Refresh User's Access token
+    """
+    return service.refresh_token(token_data)
 
 
 @router.post('/revoke_token/')
@@ -72,24 +84,37 @@ def revoke(
 
 @router.post('/introspect/')
 async def introspect(
-    introspect_data: Request,
+    introspect_data: IntrospectRequest,
     service: OAuthService = Depends()
 ):
-    """
-    Introspect data
-    """
-    # print(dir(introspect_data))
-    # print(introspect_data.__dict__)
-    # print(introspect_data.headers)
+    data = {
+        'client_id': introspect_data.client_id,
+        'secret_key': introspect_data.client_secret,
+        'token': introspect_data.token
+    }
+    return service.check_token(data)
 
-    # request_body = await introspect_data.json()
-    # token = request_body.get('token')
 
-    token_bytes = await introspect_data.body()
-    token_string = token_bytes.decode()
-    token = token_string.split('=')[-1]
-
-    return service.check_token(token)
+# @router.post('/introspect/')
+# async def introspect(
+#     introspect_data: Request,
+#     service: OAuthService = Depends()
+# ):
+#     """
+#     Introspect data
+#     """
+#     # print(dir(introspect_data))
+#     # print(introspect_data.__dict__)
+#     # print(introspect_data.headers)
+#
+#     # request_body = await introspect_data.json()
+#     # token = request_body.get('token')
+#
+#     token_bytes = await introspect_data.body()
+#     token_string = token_bytes.decode()
+#     token = token_string.split('=')[-1]
+#
+#     return service.check_token(token)
 
 
 """

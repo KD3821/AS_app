@@ -19,32 +19,42 @@ class OAuthClient(BaseOAuthClient):
         from_attributes = True
 
 
-class OAuthProvideRequest(BaseModel):
-    client_id: str
-    client_secret: str
-    grant_type: str
-    username: EmailStr | None = None
-    password: str | None = None
-    refresh_token: str | None = None
-
-
-class OAuthRevokeRequest(BaseModel):
+class OAuthRefreshRequest(BaseModel):
     client_id: str
     client_secret: str
     token: str
 
 
-class OAuthProvideResponse(BaseModel):
+class OAuthRefreshResponse(BaseModel):
     access_token: str
-    refresh_token: str
     expires_in: int
     token_type: str
     scope: str
 
 
+class OAuthProvideRequest(BaseModel):
+    client_id: str
+    client_secret: str
+    username: EmailStr
+    password: str
+
+
+class OAuthProvideResponse(OAuthRefreshResponse):
+    refresh_token: str
+
+
+class OAuthRevokeRequest(OAuthRefreshRequest):
+    pass
+
+
+class IntrospectRequest(OAuthRefreshRequest):
+    pass
+
+
 class IntrospectResponse(BaseModel):
     client_id: str
     username: EmailStr
-    scope: str
+    scope: str | None
     exp: int
     active: bool
+    refresh: bool

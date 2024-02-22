@@ -20,6 +20,8 @@ from models.oauth2 import (
     OAuthProvideResponse,
     OAuthRevokeRequest,
     IntrospectResponse,
+    OAuthRefreshRequest,
+    OAuthRefreshResponse,
 )
 
 
@@ -52,8 +54,8 @@ class OAuthService:
         except JWTError:
             raise token_exception
 
-        if payload.get('exp') < datetime.timestamp(datetime.utcnow()):  # added
-            raise token_exception
+        # if payload.get('exp') < datetime.timestamp(datetime.utcnow()):  # added
+        #     raise token_exception
 
         user_data = payload.get('user')
 
@@ -65,7 +67,7 @@ class OAuthService:
         return user
 
     @classmethod
-    def create_token(cls, user: tables.User, data: dict, token_type: str = 'access'):
+    def create_token(cls, user: tables.User, client_id: str, token_type: str = 'access'):
         user_data = User.model_validate(user)
 
         now = datetime.utcnow()
@@ -74,7 +76,7 @@ class OAuthService:
 
         payload = {
             'exp': now + timedelta(seconds=delta),
-            'client_id': data.get('client_id'),
+            'client_id': client_id,
             'user': user_data.model_dump()
         }
 
@@ -114,7 +116,7 @@ class OAuthService:
 
         return client
 
-    def authenticate_client(self, client_id: str, secret_key: str) -> OAuthClient:
+    def authenticate_client(self, client_id: str, secret_key: str) -> tables.OAuthClient:
         authentication_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Invalid client credentials',
@@ -158,6 +160,48 @@ class OAuthService:
 
         return user
 
+    def refresh_token(self, token_data: OAuthRefreshRequest) -> OAuthRefreshResponse | dict:
+        client = self.authenticate_client(
+            client_id=token_data.client_id,
+            secret_key=token_data.client_secret
+        )
+
+        token = token_data.token
+
+        user = self.validate_user_token(token)
+
+        refresh_token = (
+            self.session
+            .query(tables.OAuthToken)
+            .filter(tables.OAuthToken.refresh == True)
+            .filter(tables.OAuthToken.revoked == False)
+            .filter(tables.OAuthToken.token == token_data.token)
+            .filter(tables.OAuthToken.client_name == client.name)
+            .first()
+        )
+
+        if refresh_token:
+            access_token = self.create_token(user, client.client_id)
+            response_data = {
+                'access_token': access_token.access,
+                'expires_in': accounting_settings.jwt_expiration,
+                'token_type': 'Bearer',
+                'scope': access_token.scope,
+            }
+            access_t = tables.OAuthToken(
+                user_id=user.id,
+                user_email=user.email,
+                client_name=client.name,
+                token=access_token.access,
+                expire_date=access_token.expire_date,
+                scope=access_token.scope
+            )
+            self.session.add(access_t)
+            self.session.commit()
+            return OAuthRefreshResponse(**response_data)
+
+        return {"error": "invalid_grant"}
+
     def revoke_token(self, token_data: OAuthRevokeRequest) -> dict:
         client = self.authenticate_client(
             client_id=token_data.client_id,
@@ -188,27 +232,19 @@ class OAuthService:
         return {"error": "invalid_grant"}
 
     def provide_oauth(self, data: dict) -> OAuthProvideResponse | dict:
-        user = None
-
         client = self.authenticate_client(
             client_id=data.get('client_id'),
             secret_key=data.get('secret_key')
         )
 
-        grant_type = data.get('grant_type')
-
-        if grant_type == 'password':
-            user = self.authenticate_user(
-                email=data.get('email'),
-                password=data.get('password')
-            )
-
-        elif grant_type == 'refresh_token':
-            user = self.validate_user_token(data.get('refresh_token'))
+        user = self.authenticate_user(
+            email=data.get('email'),
+            password=data.get('password')
+        )
 
         if user:
-            access_token = self.create_token(user, data)
-            refresh_token = self.create_token(user, data, 'refresh')
+            access_token = self.create_token(user, client.client_id)
+            refresh_token = self.create_token(user, client.client_id, 'refresh')
 
             response_data = {
                 'access_token': access_token.access,
@@ -275,7 +311,7 @@ class OAuthService:
             name=client_data.name,
             hashed_password=self.hash_password(client_data.password),
             client_id=new_client_id,
-            secret_key=new_secret_key
+            secret_key=new_secret_key  # later implement 'show once' logic and hash key before saving to DB
         )
 
         self.session.add(client)
@@ -283,7 +319,14 @@ class OAuthService:
 
         return client
 
-    def check_token(self, token: str) -> IntrospectResponse | dict:
+    def check_token(self, data: dict) -> IntrospectResponse | dict:
+        client = self.authenticate_client(
+            client_id=data.get('client_id'),
+            secret_key=data.get('secret_key')
+        )
+
+        token = data.get('token')
+
         try:
             payload = jwt.decode(
                 token,
@@ -291,36 +334,38 @@ class OAuthService:
                 algorithms=[accounting_settings.jwt_algorithm]
             )
         except JWTError:
-            return {"active": False}
+            print('jwt_error')  # need to revoke token
+            return {"active": False, "revoke": True}
 
         user_dict = payload.get('user')
-        client_id = payload.get('client_id')
 
         token_exists = (
             self.session
             .query(tables.OAuthToken)
             .filter(tables.OAuthToken.user_email == user_dict.get('email'))
-            .filter(tables.OAuthToken.token == token)
+            .filter(tables.OAuthToken.client_name == client.name)
             .filter(tables.OAuthToken.expire_date > datetime.utcnow())
+            .filter(tables.OAuthToken.token == token)
             .filter(tables.OAuthToken.revoked == False)
             .first()
         )
 
-        exp = token_exists.expire_date
-        service_timezone = pytz.timezone("Europe/Moscow")
-        utc_exp = pytz.utc.localize(exp)
-        local_exp = utc_exp.astimezone(service_timezone)
-
         if token_exists:
+            exp = token_exists.expire_date
+            service_timezone = pytz.timezone("Europe/Moscow")
+            utc_exp = pytz.utc.localize(exp)
+            local_exp = utc_exp.astimezone(service_timezone)
+
             data = {
-                'client_id': client_id,
+                'client_id': client.client_id,
                 'username': user_dict.get('email'),
                 'scope': token_exists.scope,
                 'exp': int(round(datetime.timestamp(local_exp))),
-                'active': True
+                'active': True,
+                'refresh': token_exists.refresh
             }
             print(data)
-            # return IntrospectResponse(**data)
-            return data
+            return IntrospectResponse(**data)
 
+        print('not_active')
         return {"active": False}
