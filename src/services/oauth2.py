@@ -7,7 +7,7 @@ from passlib.hash import bcrypt
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 
-from fastapi import Depends, status, Response
+from fastapi import Depends, status
 from fastapi.exceptions import HTTPException
 
 import tables
@@ -53,9 +53,6 @@ class OAuthService:
             )
         except JWTError:
             raise token_exception
-
-        # if payload.get('exp') < datetime.timestamp(datetime.utcnow()):  # added
-        #     raise token_exception
 
         user_data = payload.get('user')
 
@@ -138,7 +135,7 @@ class OAuthService:
 
         return client
 
-    def authenticate_user(self, email: str, password: str) -> User:
+    def authenticate_user(self, email: str, password: str) -> tables.User:
         authentication_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Invalid email or password',
@@ -200,9 +197,9 @@ class OAuthService:
             self.session.commit()
             return OAuthRefreshResponse(**response_data)
 
-        return {"error": "invalid_grant"}
+        return {"error": "invalid refresh"}
 
-    def revoke_token(self, token_data: OAuthRevokeRequest) -> dict:
+    def revoke_tokens(self, token_data: OAuthRevokeRequest, revoke_all: bool = False) -> dict:
         client = self.authenticate_client(
             client_id=token_data.client_id,
             secret_key=token_data.client_secret
@@ -210,26 +207,40 @@ class OAuthService:
         token_exists = (
             self.session
             .query(tables.OAuthToken)
-            .filter(tables.OAuthToken.token == token_data.token)
             .filter(tables.OAuthToken.client_name == client.name)
+            .filter(tables.OAuthToken.revoked == False)
+            .filter(tables.OAuthToken.token == token_data.token)
             .first()
         )
         if token_exists:
+            if revoke_all:
+                active_tokens = (
+                    self.session
+                    .query(tables.OAuthToken)
+                    .filter(tables.OAuthToken.client_name == client.name)
+                    .filter(tables.OAuthToken.revoked == False)
+                    .filter(tables.OAuthToken.user_email == token_exists.user_email)
+                )
+            else:
+                active_tokens = (
+                    self.session
+                    .query(tables.OAuthToken)
+                    .filter(tables.OAuthToken.client_name == client.name)
+                    .filter(tables.OAuthToken.revoked == False)
+                    .filter(tables.OAuthToken.user_email == token_exists.user_email)
+                    .filter(tables.OAuthToken.refresh == False)
+                )
+
             now = datetime.utcnow()
-            unexpired_tokens = (
-                self.session
-                .query(tables.OAuthToken)
-                .filter(tables.OAuthToken.client_name == client.name)
-                .filter(tables.OAuthToken.expire_date >= now)
-            )
-            for token in unexpired_tokens:
+
+            for token in active_tokens:
                 token.revoke_date = now
                 token.revoked = True
 
             self.session.commit()
             return {"message": "token revoked"}
 
-        return {"error": "invalid_grant"}
+        return {"error": "no need for revoke"}
 
     def provide_oauth(self, data: dict) -> OAuthProvideResponse | dict:
         client = self.authenticate_client(
@@ -243,6 +254,24 @@ class OAuthService:
         )
 
         if user:
+            valid_refresh_token = (
+                self.session
+                .query(tables.OAuthToken)
+                .filter(tables.OAuthToken.client_name == client.name)
+                .filter(tables.OAuthToken.revoked == False)
+                .filter(tables.OAuthToken.user_email == user.email)
+                .filter(tables.OAuthToken.refresh == False)
+                .first()
+            )
+            if valid_refresh_token:
+                revoke_request = OAuthRevokeRequest(
+                    client_id=client.client_id,
+                    client_secret=client.secret_key,
+                    token=valid_refresh_token.token
+                )
+
+                self.revoke_tokens(revoke_request, revoke_all=True)
+
             access_token = self.create_token(user, client.client_id)
             refresh_token = self.create_token(user, client.client_id, 'refresh')
 
@@ -274,7 +303,7 @@ class OAuthService:
             self.session.commit()
 
             return OAuthProvideResponse(**response_data)
-        return {"error": "invalid_grant"}
+        return {"error": "invalid creds"}
 
     def register_client(self, client_data: OAuthClientCreate) -> OAuthClient:
         client_exists = (
@@ -320,6 +349,8 @@ class OAuthService:
         return client
 
     def check_token(self, data: dict) -> IntrospectResponse | dict:
+        now = datetime.utcnow()
+
         client = self.authenticate_client(
             client_id=data.get('client_id'),
             secret_key=data.get('secret_key')
@@ -333,39 +364,95 @@ class OAuthService:
                 accounting_settings.jwt_secret,
                 algorithms=[accounting_settings.jwt_algorithm]
             )
+
+            user_dict = payload.get('user')
+
+            token_exists = (
+                self.session
+                .query(tables.OAuthToken)
+                .filter(tables.OAuthToken.user_email == user_dict.get('email'))
+                .filter(tables.OAuthToken.client_name == client.name)
+                .filter(tables.OAuthToken.expire_date > now)
+                .filter(tables.OAuthToken.token == token)
+                .filter(tables.OAuthToken.revoked == False)
+                .first()
+            )
+
+            if token_exists:
+                return self.introspect_token(token=token_exists, client=client)
+
         except JWTError:
-            print('jwt_error')  # need to revoke token
-            return {"active": False, "revoke": True}
+            print('jwt_error')  # need to create new_access if access expired between moments of send and receive
 
-        user_dict = payload.get('user')
+            user_token = (
+                self.session
+                .query(tables.OAuthToken)
+                .filter(tables.OAuthToken.client_name == client.name)
+                .filter(tables.OAuthToken.token == token)
+                .filter(tables.OAuthToken.expire_date <= now)
+                .first()
+            )
 
-        token_exists = (
-            self.session
-            .query(tables.OAuthToken)
-            .filter(tables.OAuthToken.user_email == user_dict.get('email'))
-            .filter(tables.OAuthToken.client_name == client.name)
-            .filter(tables.OAuthToken.expire_date > datetime.utcnow())
-            .filter(tables.OAuthToken.token == token)
-            .filter(tables.OAuthToken.revoked == False)
-            .first()
-        )
+            if user_token:
+                valid_refresh_token = (
+                    self.session
+                    .query(tables.OAuthToken)
+                    .filter(tables.OAuthToken.client_name == client.name)
+                    .filter(tables.OAuthToken.user_email == user_token.user_email)
+                    .filter(tables.OAuthToken.revoked == False)
+                    .filter(tables.OAuthToken.refresh == True)
+                    .filter(tables.OAuthToken.expire_date > now)
+                    .first()
+                )
 
-        if token_exists:
-            exp = token_exists.expire_date
-            service_timezone = pytz.timezone("Europe/Moscow")
-            utc_exp = pytz.utc.localize(exp)
-            local_exp = utc_exp.astimezone(service_timezone)
+                if valid_refresh_token:
+                    return self.introspect_token(token=valid_refresh_token, client=client)
 
-            data = {
-                'client_id': client.client_id,
-                'username': user_dict.get('email'),
-                'scope': token_exists.scope,
-                'exp': int(round(datetime.timestamp(local_exp))),
-                'active': True,
-                'refresh': token_exists.refresh
-            }
-            print(data)
-            return IntrospectResponse(**data)
+                else:
+                    data = {"active": False, "revoke": True}
+
+                    revoke_request = OAuthRevokeRequest(
+                        client_id=client.client_id,
+                        client_secret=client.secret_key,
+                        token=token
+                    )
+                    result = self.revoke_tokens(token_data=revoke_request, revoke_all=True)
+
+                    if result.get('error'):
+                        data['error'] = result.get('error')
+
+                    return data
 
         print('not_active')
         return {"active": False}
+
+    def introspect_token(self, token: tables.OAuthToken, client: tables.OAuthClient) -> IntrospectResponse:
+        exp = token.expire_date
+        service_timezone = pytz.timezone("Europe/Moscow")
+        utc_exp = pytz.utc.localize(exp)
+        local_exp = utc_exp.astimezone(service_timezone)
+
+        introspect_data = {
+            'client_id': client.client_id,
+            'username': token.user_email,
+            'scope': token.scope,
+            'exp': int(round(datetime.timestamp(local_exp))),
+            'active': True,
+            'refresh': token.refresh,
+            'error': None
+        }
+        if token.refresh:
+            introspect_data.update({'scope': 'attach user scope'})
+
+            revoke_request = OAuthRevokeRequest(
+                client_id=client.client_id,
+                client_secret=client.secret_key,
+                token=token.token
+            )
+            result = self.revoke_tokens(token_data=revoke_request, revoke_all=False)
+
+            if result.get('error'):
+                introspect_data['error'] = result.get('error')
+
+        print(introspect_data)
+        return IntrospectResponse(**introspect_data)

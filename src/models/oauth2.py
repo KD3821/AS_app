@@ -43,10 +43,6 @@ class OAuthProvideResponse(OAuthRefreshResponse):
     refresh_token: str
 
 
-class OAuthRevokeRequest(OAuthRefreshRequest):
-    pass
-
-
 class IntrospectRequest(OAuthRefreshRequest):
     pass
 
@@ -58,3 +54,8 @@ class IntrospectResponse(BaseModel):
     exp: int
     active: bool
     refresh: bool
+    error: str | None
+
+
+class OAuthRevokeRequest(OAuthRefreshRequest):
+    pass

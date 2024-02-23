@@ -1,6 +1,4 @@
-import json
-
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 
 from services.oauth2 import OAuthService
 from models.oauth2 import (
@@ -79,7 +77,7 @@ def revoke(
     """
     Revoke User's Access and Refresh tokens
     """
-    return service.revoke_token(token_data)
+    return service.revoke_tokens(token_data, revoke_all=True)
 
 
 @router.post('/introspect/')
@@ -93,28 +91,6 @@ async def introspect(
         'token': introspect_data.token
     }
     return service.check_token(data)
-
-
-# @router.post('/introspect/')
-# async def introspect(
-#     introspect_data: Request,
-#     service: OAuthService = Depends()
-# ):
-#     """
-#     Introspect data
-#     """
-#     # print(dir(introspect_data))
-#     # print(introspect_data.__dict__)
-#     # print(introspect_data.headers)
-#
-#     # request_body = await introspect_data.json()
-#     # token = request_body.get('token')
-#
-#     token_bytes = await introspect_data.body()
-#     token_string = token_bytes.decode()
-#     token = token_string.split('=')[-1]
-#
-#     return service.check_token(token)
 
 
 """
