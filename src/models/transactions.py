@@ -1,7 +1,8 @@
-from pydantic import BaseModel
 from enum import Enum
 from decimal import Decimal
 from datetime import datetime
+
+from pydantic import BaseModel
 
 
 class Kind(str, Enum):
@@ -11,7 +12,6 @@ class Kind(str, Enum):
 
 
 class BaseTransaction(BaseModel):
-    type: Kind
     amount: Decimal
     receiver_account: str
     notice: str
@@ -19,14 +19,18 @@ class BaseTransaction(BaseModel):
 
 class Transaction(BaseTransaction):
     id: int
-    user_id: int
+    user_email: str
     sender_account: str
     date: datetime
 
 
 class TransactionCreate(BaseTransaction):
-    receiver_account: str | None = None
+    sender_account: str
 
 
 class TransactionUpdate(BaseModel):
     notice: str | None = None
+
+
+class TransactionAutoCreate(TransactionCreate):
+    type: Kind

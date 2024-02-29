@@ -20,8 +20,7 @@ def register(
     service: AuthService = Depends()
 ):
     """
-    Register User of Accounting Service. Setting admin:"true" makes money on admin's account available for loans! (JOKE)
-    | Admin funcs not implemented - to be continued...
+    Register User of Accounting Service
     """
     return service.register_user(user_data)
 

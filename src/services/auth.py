@@ -1,9 +1,10 @@
+from datetime import datetime, timedelta
+from typing import Annotated
+from decimal import Decimal
+
 from pydantic import ValidationError
 from jose import jwt, JWTError
 from passlib.hash import bcrypt
-from datetime import datetime, timedelta
-from typing import Annotated
-
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -85,20 +86,6 @@ class AuthService:
         return Token(access=token)
 
     def register_user(self, user_data: UserCreate) -> Token:
-        if user_data.is_admin:
-            admin_user = (
-                self.session
-                .query(tables.User)
-                .filter(tables.User.is_admin is True)
-                .first()
-            )
-
-            if admin_user:
-                raise HTTPException(
-                    detail='AdminUser already exists.',
-                    status_code=status.HTTP_400_BAD_REQUEST
-                )
-
         user = (
             self.session
             .query(tables.User)
@@ -114,11 +101,17 @@ class AuthService:
 
         user = tables.User(
             email=user_data.email,
-            is_admin=user_data.is_admin,
             hashed_password=self.hash_password(user_data.password)
         )
 
-        self.session.add(user)
+        wallet = tables.Wallet(
+            owner=user_data.email,
+            debit=Decimal('0.00'),
+            balance=Decimal('0.00'),
+            credit=Decimal('0.00')
+        )
+
+        self.session.add_all([user, wallet])
         self.session.commit()
 
         return self.create_token(user)

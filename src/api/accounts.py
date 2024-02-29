@@ -2,7 +2,7 @@ from typing import List, Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 
-from models.accounts import Account, AccountCreate, Country, AccountUpdate, AccountPublic
+from models.accounts import Account
 from services.accounts import AccountsService
 from models.auth import User
 from services.auth import get_current_user
@@ -16,63 +16,38 @@ router = APIRouter(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-@router.get('/', response_model=List[AccountPublic])
+@router.get('/', response_model=List[Account])
 def get_accounts(
     user: CurrentUser,
-    country: Country | None = None,
     service: AccountsService = Depends()
 ):
     """
-    Get list of all Accounts registered in 'Accounting Service' (Auth required).
-
-    - **country**: Filter Accounts by country - ('RU', 'US', 'GB', 'TR', 'GE', 'ES', 'FR', 'CN') - Optionally.
+    Get list of all User's Accounts registered in 'Accounting Service'.
     """
-    return service.get_list(country=country)
+    return service.get_list(user_email=user.email)
 
 
-@router.get('/info', response_model=Account)
+@router.get('/{account_number}', response_model=Account)
 def get_account(
     user: CurrentUser,
+    account_number: str,
     service: AccountsService = Depends()
 ):
     """
     Get info about User's account (Auth required)
     """
-    return service.get(user_id=user.id)
+    return service.get(user_email=user.email, account_number=account_number)
 
 
-@router.post('/', response_model=Account)
-def create_account(
-    user: CurrentUser,
-    account_data: AccountCreate,
-    service: AccountsService = Depends()
-):
-    """
-    Register Business Account (Auth required)
-    """
-    return service.create(user_id=user.id, account_data=account_data)
-
-
-@router.patch('/info', response_model=Account)
-def update_account(
-    user: CurrentUser,
-    account_data: AccountUpdate | None,
-    service: AccountsService = Depends()
-):
-    """
-    Update info about Business Account (Auth required)
-    """
-    return service.update(user_id=user.id, account_data=account_data)
-
-
-@router.delete('/info')
+@router.delete('/{account_number}')
 def delete_account(
     user: CurrentUser,
+    account_number: str,
     service: AccountsService = Depends()
 ):
     """
-    Delete Business Account (Auth required)
+    Delete Account (Auth required)
     """
-    service.delete(user_id=user.id)
+    service.delete(user_email=user.email, account_number=account_number)
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

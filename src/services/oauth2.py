@@ -1,8 +1,10 @@
 import random
 import string
+from datetime import datetime, timedelta
+from decimal import Decimal
+
 import pytz
 from pydantic import ValidationError
-from datetime import datetime, timedelta
 from passlib.hash import bcrypt
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
@@ -13,7 +15,7 @@ from fastapi.exceptions import HTTPException
 import tables
 from settings import accounting_settings
 from database import get_session
-from models.auth import User, AccessToken, RefreshToken
+from models.auth import User
 from models.oauth2 import (
     OAuthClientCreate,
     OAuthClient,
@@ -22,6 +24,8 @@ from models.oauth2 import (
     IntrospectResponse,
     OAuthRefreshRequest,
     OAuthRefreshResponse,
+    AccessToken,
+    RefreshToken,
 )
 
 
@@ -36,6 +40,25 @@ class OAuthService:
     @classmethod
     def hash_password(cls, password: str) -> str:
         return bcrypt.hash(password)
+
+    def create_account(self, user: tables.User, client: tables.OAuthClient) -> None:
+        timestamp = datetime.utcnow()
+
+        timestamp_str = str(timestamp.timestamp())
+
+        account = tables.Account(
+            user_email=user.email,
+            client_id=client.client_id,
+            client_name=client.name,
+            registered_at=timestamp,
+            account_number=f"{user.id}{timestamp_str.split('.')[0]}",
+            debit=Decimal('0.00'),
+            balance=Decimal('0.00'),
+            credit=Decimal('0.00')
+        )
+
+        self.session.add(account)
+        self.session.commit()
 
     @classmethod
     def validate_user_token(cls, token: str) -> User:
@@ -130,7 +153,7 @@ class OAuthService:
         if not client:
             raise authentication_exception
 
-        if client.secret_key != secret_key:
+        if client.secret_key != secret_key:  # later implement 'hashed secret_key' check
             raise authentication_exception
 
         return client
@@ -254,6 +277,17 @@ class OAuthService:
         )
 
         if user:
+            account = (
+                self.session
+                .query(tables.Account)
+                .filter(tables.Account.client_id == client.client_id)
+                .filter(tables.Account.user_email == user.email)
+                .first()
+            )
+
+            if account is None:
+                self.create_account(user, client)
+
             valid_refresh_token = (
                 self.session
                 .query(tables.OAuthToken)
@@ -343,7 +377,15 @@ class OAuthService:
             secret_key=new_secret_key  # later implement 'show once' logic and hash key before saving to DB
         )
 
-        self.session.add(client)
+        wallet = tables.Wallet(
+            owner=new_client_id,
+            is_business=True,
+            debit=Decimal('0.00'),
+            balance=Decimal('0.00'),
+            credit=Decimal('0.00')
+        )
+
+        self.session.add_all([client, wallet])
         self.session.commit()
 
         return client
@@ -388,8 +430,8 @@ class OAuthService:
                 self.session
                 .query(tables.OAuthToken)
                 .filter(tables.OAuthToken.client_name == client.name)
-                .filter(tables.OAuthToken.token == token)
                 .filter(tables.OAuthToken.expire_date <= now)
+                .filter(tables.OAuthToken.token == token)
                 .first()
             )
 

@@ -1,5 +1,6 @@
-from pydantic import BaseModel, EmailStr
 from datetime import datetime
+
+from pydantic import BaseModel, EmailStr
 
 
 class BaseOAuthClient(BaseModel):
@@ -59,3 +60,15 @@ class IntrospectResponse(BaseModel):
 
 class OAuthRevokeRequest(OAuthRefreshRequest):
     pass
+
+
+class AccessToken(BaseModel):
+    access: str
+    expire_date: datetime
+    scope: str
+    token_type: str = 'Bearer'
+
+
+class RefreshToken(BaseModel):
+    refresh: str
+    expire_date: datetime
