@@ -92,7 +92,7 @@ class OAuthService:
 
         now = datetime.utcnow()
 
-        delta = 300 if token_type == 'refresh' else accounting_settings.jwt_expiration  # hardcode refresh 'exp' (5 min)
+        delta = 1200 if token_type == 'refresh' else accounting_settings.jwt_expiration  # hardcode 'exp'(20 min)
 
         payload = {
             'exp': now + timedelta(seconds=delta),
@@ -353,11 +353,13 @@ class OAuthService:
                 status_code=status.HTTP_400_BAD_REQUEST
             )
 
-        new_client_id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
-
         client_id_exists = True
+
         while client_id_exists:
             client_id_exists = False
+
+            new_client_id = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+
             client_same_id = (
                 self.session
                 .query(tables.OAuthClient)
@@ -367,7 +369,7 @@ class OAuthService:
             if client_same_id:
                 client_id_exists = True
 
-        tmp_secret_key = self.hash_password(client_data.password + new_client_id + client_data.name)
+        tmp_secret_key = self.hash_password(client_data.password + new_client_id + client_data.name)  # noqa
         new_secret_key = tmp_secret_key[-10:] + new_client_id[::2]
 
         client = tables.OAuthClient(
